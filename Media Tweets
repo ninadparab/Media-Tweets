@@ -1,0 +1,141 @@
+#Loading Libraries
+
+library(rtweet)
+library(tidyverse)
+library(lubridate)
+library(tidytext)
+library(tm)
+library(wordcloud)
+library(syuzhet)
+
+
+#Logging On Twitter
+
+create_token(
+  app = "#AppName",
+  consumer_key = "#ConsumerKey",
+  consumer_secret = "#ConsumerSecretKey")
+
+
+#Getting Tweets from Twitter Handles of news channels
+#4 Indian news channels and 3 global/US
+
+ndtv <- get_timelines("ndtv", n = 18000)
+zeenews <- get_timelines("zeenews", n = 18000)
+CNNnews18 <- get_timelines("CNNnews18", n = 18000)
+republic <- get_timelines("republic", n = 18000)
+BBCWorld <- get_timelines("BBCWorld", n = 18000)
+CNN <- get_timelines("CNN", n = 18000)
+FoxNews <- get_timelines("FoxNews", n = 18000)
+
+
+#function to get tweets by date
+
+dailytweet <-
+  function(channel)
+  {
+    temp <- channel%>%
+      mutate(date = as.Date(created_at))%>%
+      group_by(date)%>%
+      summarise(count=n())
+      
+    colnames(temp) <- c("date",deparse(substitute(channel)))
+    
+    temp
+  }
+
+
+#Plotting daily tweets of all channels
+
+dailytweet(FoxNews_v2)%>%
+  left_join(dailytweet(BBCWorld_v2), by = c("date"="date"))%>%
+  left_join(dailytweet(CNN_v2), by = c("date"="date"))%>%
+  left_join(dailytweet(ndtv_v2), by = c("date"="date"))%>%
+  left_join(dailytweet(CNNnews18_v2), by = c("date"="date"))%>%
+  left_join(dailytweet(republic_v2), by = c("date"="date"))%>%
+  left_join(dailytweet(zeenews_v2), by = c("date"="date"))%>%
+  gather(FoxNews_v2:zeenews_v2,key="channel", value="count")%>%
+  ggplot(aes(x=date,y=count, colour=channel))+
+  geom_line()
+  
+  
+
+#Function to clean text (from online resource)
+
+clean.text <- function(some_txt)
+{
+  some_txt = gsub("(RT|via)((?:\\b\\W*@\\w+)+)", "", some_txt)
+  some_txt = gsub("@\\w+", "", some_txt)
+  some_txt = gsub("[[:punct:]]", "", some_txt)
+  some_txt = gsub("[[:digit:]]", "", some_txt)
+  some_txt = gsub("http\\w+", "", some_txt)
+  some_txt = gsub("[ \t]{2,}", "", some_txt)
+  some_txt = gsub("^\\s+|\\s+$", "", some_txt)
+  some_txt = gsub("amp", "", some_txt)
+  some_txt = tolower(some_txt)
+}  
+
+
+#Function for WordCloud
+
+cloudofwords <-
+  function(object)
+  {
+    clean <- clean.text(object$text)
+    corpus <- Corpus(VectorSource(clean))
+    corpus <- tm_map(corpus, removeWords, stopwords("english"))
+    dtm <- TermDocumentMatrix(corpus)
+    
+    m <- as.matrix(dtm)
+    v <- sort(rowSums(m),decreasing=TRUE)
+    d <- data.frame(word = names(v),freq=v)
+    
+    par(bg="grey30") 
+    wordcloud(head(d,25)$word, d$freq, col=terrain.colors(length(d$word), alpha=0.9), random.order=FALSE, rot.per=0.3)
+    
+  }
+
+
+#Function for getting Sentiment
+
+sentiment <-
+  function(object1)
+  {
+    object <-
+      object1%>%
+      filter(date(created_at)>"2018-08-02")
+    
+    clean <- clean.text(object$text)
+    
+    d1<-get_nrc_sentiment(clean)
+    td<-data.frame(t(d1))
+    
+    td_new <- data.frame(rowSums(td))
+    
+    names(td_new)[1] <- "count"
+    td_new <- cbind("sentiment" = rownames(td_new), td_new)
+    rownames(td_new) <- NULL
+    td_new2<-td_new[c(1,3:8),]
+    
+    td_new2%>%
+      ggplot(aes(x=sentiment, y=count,fill=sentiment))+
+      geom_bar(stat="identity")+
+      ggtitle(deparse(substitute(object1)))
+    
+  }
+  
+sentiment(republic)
+sentiment(ndtv)
+sentiment(BBCWorld)
+sentiment(FoxNews)
+sentiment(CNN)
+sentiment(CNNnews18)
+sentiment(zeenews)
+
+cloudofwords(republic)
+cloudofwords(ndtv)
+cloudofwords(BBCWorld)
+cloudofwords(FoxNews)
+cloudofwords(CNN)
+cloudofwords(CNNnews18)
+cloudofwords(zeenews)
