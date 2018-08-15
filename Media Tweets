@@ -18,15 +18,16 @@ create_token(
 
 
 #Getting Tweets from Twitter Handles of news channels
-#4 Indian news channels and 3 global/US
+#6 Indian news channels
 
-ndtv <- get_timelines("ndtv", n = 18000)
-zeenews <- get_timelines("zeenews", n = 18000)
+
+NDTV <- get_timelines("ndtv", n = 18000)
+ZeeNews <- get_timelines("zeenews", n = 18000)
 CNNnews18 <- get_timelines("CNNnews18", n = 18000)
-republic <- get_timelines("republic", n = 18000)
-BBCWorld <- get_timelines("BBCWorld", n = 18000)
-CNN <- get_timelines("CNN", n = 18000)
-FoxNews <- get_timelines("FoxNews", n = 18000)
+Republic <- get_timelines("republic", n = 18000)
+TimesNow <- get_timelines("TimesNow", n = 18000)
+IndiaToday <- get_timelines("IndiaToday", n = 18000)
+
 
 
 #function to get tweets by date
@@ -47,16 +48,42 @@ dailytweet <-
 
 #Plotting daily tweets of all channels
 
-dailytweet(FoxNews_v2)%>%
-  left_join(dailytweet(BBCWorld_v2), by = c("date"="date"))%>%
-  left_join(dailytweet(CNN_v2), by = c("date"="date"))%>%
-  left_join(dailytweet(ndtv_v2), by = c("date"="date"))%>%
-  left_join(dailytweet(CNNnews18_v2), by = c("date"="date"))%>%
-  left_join(dailytweet(republic_v2), by = c("date"="date"))%>%
-  left_join(dailytweet(zeenews_v2), by = c("date"="date"))%>%
-  gather(FoxNews_v2:zeenews_v2,key="channel", value="count")%>%
+dailytweet(NDTV)%>%
+  left_join(dailytweet(Republic), by = c("date"="date"))%>%
+  left_join(dailytweet(TimesNow), by = c("date"="date"))%>%
+  left_join(dailytweet(ZeeNews), by = c("date"="date"))%>%
+  left_join(dailytweet(IndiaToday), by = c("date"="date"))%>%
+  left_join(dailytweet(CNNnews18), by = c("date"="date"))%>%
+  gather(NDTV:CNNnews18,key="channel", value="count")%>%
   ggplot(aes(x=date,y=count, colour=channel))+
   geom_line()
+  
+#Function to plot WordCloud based on Hashtags
+
+hashtag <- function(channel)
+{
+  temp <-
+    as.data.frame(table(unlist(channel$hashtags)[!is.na(unlist(channel$hashtags))]))%>%
+    arrange(desc(Freq))%>%
+    head(20)
+  
+  wordcloud(temp$Var1,
+            temp$Freq, 
+            colors=brewer.pal(8, "Dark2"),
+            random.order=FALSE, rot.per=0.3,
+            scale=c(1,.5))
+}
+
+
+#Plotting WordCloud of hashtags for all channels
+
+hashtag(NDTV)
+hashtag(Republic)
+hashtag(TimesNow)
+hashtag(ZeeNews)
+hashtag(IndiaToday)
+hashtag(CNNnews18)
+
   
   
 
