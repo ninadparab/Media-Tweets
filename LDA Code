@@ -1,0 +1,116 @@
+# This code creates clusters of tweets based on the Latent Dirichlet Allocation
+# It uses the tweets from Indian media as on December 18, 2018 (around 2 weeks of tweets) and 
+# chapters from the Text Mining using R textbook (https://www.tidytextmining.com/topicmodeling.html)
+
+# Following fuction does following tasks
+# 1. Cleans the text based on the clean.text function described in other code
+# 2. Converts words to tokens
+# 3. Creates count of words based on tokens
+# 4. Creates Document Term Matrix and runs LDA 
+# 5. Selects and plots top 5 words in each topic to identify the topic
+
+LDAtweets <-function(channelname, count)
+{
+  text <- clean.text(channelname)
+  
+  test <-  
+    data.frame(text, stringsAsFactors=FALSE)%>%
+    mutate(TweetNo = paste("Tweet ",row_number()))%>%
+    unnest_tokens(word, text)
+  
+  
+  word_counts <- test %>%
+    anti_join(stop_words) %>%
+    count(TweetNo, word, sort = TRUE) %>%
+    ungroup()
+  
+  tweet_dtm <-
+    word_counts%>%
+    cast_dtm(TweetNo, word, n)
+  
+  tweet_dtm
+  
+  tweet_lda <- LDA(tweet_dtm, k = count, control = list(seed=111))
+  
+  tweet_topics <- tidy(tweet_lda, matrix = "beta")
+  tweet_topics
+  
+  top_terms <- tweet_topics %>%
+    group_by(topic) %>%
+    top_n(5, beta) %>%
+    ungroup() %>%
+    arrange(topic, -beta)
+  
+  top_terms %>%
+    mutate(term = reorder(term, beta)) %>%
+    ggplot(aes(term, beta, fill = factor(topic))) +
+    geom_col(show.legend = FALSE) +
+    facet_wrap(~ topic, scales = "free") +
+    coord_flip()
+}
+
+# This code was run on various combinations of channels and number of topics to see optimum models
+# Here are some of the clusters which were found to identify topics
+
+LDAtweets(NDTV18Dec$text, 8)
+LDAtweets(TimesNow18Dec$text, 5)
+LDAtweets(Republic18Dec$text, 6)
+LDAtweets(ZeeNews18Dec$text, 5)
+LDAtweets(CNNnews1818Dec$text, 5)
+LDAtweets(IndiaToday18Dec$text, 3)
+
+# Second stage was an attempt to use LDA for channels itself to see if the channels can be grouped into clusters.
+# After cleaning of text, the tweets from each channel are grouped together and LDA is run
+# Common terms such as live, watch, etc were removed
+# Top terms for each channel were used to group them in 3 clusters. 
+# However, results are not very conclusive. Cluster 1 - Times Now, 2-Republic, TV18, 3-India Today, Zee News, NDTV
+
+channelclean <- function(channel)
+{
+  text <- clean.text(channel$text)
+    text1 <- unlist(strsplit(gsub("\\.","",text)," "))
+    test <-  
+      data.frame(text, stringsAsFactors=FALSE)%>%
+      mutate(channel = channel$screen_name)%>%
+      unnest_tokens(word, text)
+}
+
+
+channellist <- rbind(channelclean(NDTV18Dec), channelclean(Republic18Dec),
+                     channelclean(TimesNow18Dec), channelclean(CNNnews1818Dec),
+                     channelclean(ZeeNews18Dec), channelclean(IndiaToday18Dec))
+
+
+word_counts <- channellist %>%
+  anti_join(stop_words) %>%
+  count(channel, word, sort = TRUE) %>%
+  ungroup()%>%
+  filter(!(word %in% c("watch","live","read","updates","news")))
+  
+
+tweet_dtm <-
+  word_counts%>%
+  cast_dtm(channel, word, n)
+
+tweet_dtm
+
+tweet_lda <- LDA(tweet_dtm, k = 3, control = list(seed=111))
+
+tweet_topics <- tidy(tweet_lda, matrix = "beta")
+tweet_topics
+
+top_terms <- tweet_topics %>%
+  group_by(topic) %>%
+  top_n(5, beta) %>%
+  ungroup() %>%
+  arrange(topic, -beta)
+
+top_terms %>%
+  mutate(term = reorder(term, beta)) %>%
+  ggplot(aes(term, beta, fill = factor(topic))) +
+  geom_col(show.legend = FALSE) +
+  facet_wrap(~ topic, scales = "free") +
+  coord_flip()
+
+tweet_gamma <- tidy(tweet_lda, matrix = "gamma")
+tweet_gamma
